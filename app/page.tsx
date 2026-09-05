@@ -131,7 +131,13 @@ export default function Home() {
         }),
       });
 
-      const data = await res.json();
+      const rawText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        throw new Error(`Respons server tidak valid (HTTP ${res.status}). Silakan coba lagi.`);
+      }
 
       if (!res.ok || !data.ok) {
         throw new Error(data.error || `HTTP ${res.status}: Gagal mengirim link`);
@@ -201,7 +207,13 @@ export default function Home() {
         }),
       });
 
-      const data = await res.json();
+      const rawText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        throw new Error(`Respons server tidak valid (HTTP ${res.status}). Silakan coba lagi.`);
+      }
 
       if (!res.ok || !data.ok) {
         throw new Error(data.error || `HTTP ${res.status}: Verifikasi gagal`);
@@ -464,7 +476,7 @@ export default function Home() {
                         className="w-full px-3 py-2 bg-white border-2 border-black text-xs font-mono focus:outline-none focus:bg-amber-50"
                       />
                       <p className="text-[10px] text-neutral-500">
-                        Secara default, server akan mengambil cookie baru otomatis dari endpoint <code>/api/cookie</code>.
+                        Secara default, sistem akan membuat session token unik secara otomatis untuk setiap proses verifikasi.
                       </p>
                     </div>
                   )}
