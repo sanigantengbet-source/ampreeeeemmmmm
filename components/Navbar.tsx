@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { MessageSquare, ExternalLink } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -40,8 +41,16 @@ export default function Navbar() {
       {/* Main Header Bar */}
       <div className="max-w-5xl mx-auto px-4 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-lime-400 border-3 border-black shadow-[3px_3px_0px_0px_#000] flex items-center justify-center font-black text-2xl rotate-[-2deg]">
-            AM
+          <div className="relative w-12 h-12 bg-[#171c2e] border-3 border-black shadow-[3px_3px_0px_0px_#000] rounded-sm overflow-hidden flex items-center justify-center shrink-0 rotate-[-2deg]">
+            <Image
+              src="/alight-motion-logo.png"
+              alt="Logo Alight Motion"
+              width={48}
+              height={48}
+              className="w-full h-full object-cover"
+              priority
+              referrerPolicy="no-referrer"
+            />
           </div>
           <div>
             <div className="flex items-center gap-2">
