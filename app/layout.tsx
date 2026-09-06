@@ -4,6 +4,10 @@ import './globals.css'; // Global styles
 export const metadata: Metadata = {
   title: 'AM Prem Verifier - Sistem Verifikasi Akun Alight Motion',
   description: 'Layanan verifikasi akun Alight Motion via magic link dengan antarmuka web modern dan aman.',
+  icons: {
+    icon: '/alight-motion-logo.png',
+    apple: '/alight-motion-logo.png',
+  },
   openGraph: {
     title: 'AM Prem Verifier - Sistem Verifikasi Akun Alight Motion',
     description: 'Layanan verifikasi akun Alight Motion via magic link dengan antarmuka web modern dan aman.',
