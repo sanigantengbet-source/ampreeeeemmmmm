@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import Navbar from '@/components/Navbar';
 import LogTerminal, { LogEntry } from '@/components/LogTerminal';
 import VerificationCard from '@/components/VerificationCard';
@@ -317,14 +318,26 @@ export default function Home() {
         {/* Brutalist Intro Hero Card */}
         <div className="bg-yellow-300 border-4 border-black shadow-[6px_6px_0px_0px_#000] p-4 sm:p-6 relative overflow-hidden">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="space-y-1.5 max-w-2xl">
+            <div className="space-y-2 max-w-2xl">
               <div className="inline-flex items-center gap-2 bg-black text-white px-2.5 py-1 font-mono font-bold text-xs">
                 <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
                 <span>LAYANAN VERIFIKASI AKUN BERBASIS WEB</span>
               </div>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight uppercase leading-tight">
-                AM PREM MAGIC LINK TOOL
-              </h2>
+              <div className="flex items-center gap-3">
+                <div className="relative w-10 h-10 sm:w-12 sm:h-12 bg-[#171c2e] border-3 border-black shadow-[3px_3px_0px_0px_#000] rounded-sm overflow-hidden shrink-0">
+                  <Image
+                    src="/alight-motion-logo.png"
+                    alt="Logo Alight Motion"
+                    width={48}
+                    height={48}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight uppercase leading-tight">
+                  AM PREM MAGIC LINK TOOL
+                </h2>
+              </div>
               <p className="font-mono text-xs sm:text-sm font-semibold text-neutral-800">
                 Otomasi perolehan session cookie, pengiriman magic link ke email, dan verifikasi akun Alight Motion secara cepat dan aman.
               </p>
