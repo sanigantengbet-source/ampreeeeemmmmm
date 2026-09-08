@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
 import Navbar from '@/components/Navbar';
 import LogTerminal, { LogEntry } from '@/components/LogTerminal';
 import VerificationCard from '@/components/VerificationCard';
@@ -10,30 +9,30 @@ import {
   Send,
   CheckCircle2,
   AlertTriangle,
-  Mail,
-  Link as LinkIcon,
   RefreshCw,
-  KeyRound,
   ExternalLink,
+  ClipboardPaste,
+  Mail,
+  KeyRound,
   Sparkles,
   HelpCircle,
-  ClipboardPaste,
-  ShieldCheck,
   Zap,
+  TrendingUp,
+  Award,
 } from 'lucide-react';
 
 const INITIAL_LOGS: LogEntry[] = [
   {
     id: 'init-1',
-    timestamp: 'READY',
+    timestamp: 'SYSTEM',
     type: 'info',
-    text: 'Sistem Verifikasi Akun Alight Motion siap digunakan.',
+    text: 'Sistem Verifikasi Alight Motion (am-reverse core) siap digunakan.',
   },
   {
     id: 'init-2',
     timestamp: 'READY',
     type: 'cmd',
-    text: 'Silakan masukkan alamat email akun Anda lalu klik "Kirim Link".',
+    text: 'Silakan masukkan alamat email akun Alight Motion Anda lalu klik "Kirim Link".',
   },
 ];
 
@@ -42,6 +41,12 @@ export default function Home() {
   const [cookie, setCookie] = useState('');
   const [magicLink, setMagicLink] = useState('');
   const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  // Statistics from /api/stats
+  const [stats, setStats] = useState<{ total: number; today: number }>({
+    total: 0,
+    today: 0,
+  });
 
   // Loading states
   const [isSending, setIsSending] = useState(false);
@@ -60,23 +65,55 @@ export default function Home() {
   // Activity logs
   const [logs, setLogs] = useState<LogEntry[]>(INITIAL_LOGS);
 
-  // History records
-  const [history, setHistory] = useState<VerifiedRecord[]>([]);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
-  // Safe client-side hydration for history
-  useEffect(() => {
-    const timer = setTimeout(() => {
+  // History records with safe lazy client initial state
+  const [history, setHistory] = useState<VerifiedRecord[]>(() => {
+    if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('am_verified_history');
         if (saved) {
-          setHistory(JSON.parse(saved));
+          return JSON.parse(saved);
         }
       } catch {
         // Ignore local storage error
       }
-    }, 0);
-    return () => clearTimeout(timer);
+    }
+    return [];
+  });
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Fetch stats on load and after verification
+  const refreshStats = async () => {
+    try {
+      const res = await fetch('/api/stats');
+      if (res.ok) {
+        const data = await res.json();
+        setStats({
+          total: Number(data.total) || 0,
+          today: Number(data.today) || 0,
+        });
+      }
+    } catch {
+      // Ignore stats fetch error
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch('/api/stats')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (isMounted && data) {
+          setStats({
+            total: Number(data.total) || 0,
+            today: Number(data.today) || 0,
+          });
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const addLog = (text: string, type: LogEntry['type'] = 'info') => {
@@ -101,35 +138,32 @@ export default function Home() {
     ]);
   };
 
-  // Step 1: Send verification link
+  // Step 1: Send verification link using the new logic
   const handleSendLink = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!email.trim()) {
+    const targetEmail = email.trim().toLowerCase();
+    if (!targetEmail) {
       setStatusMessage({ type: 'error', text: 'Silakan masukkan alamat email!' });
       addLog('❌ Error: Email tidak boleh kosong', 'error');
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
+    if (!targetEmail.includes('@') || !targetEmail.includes('.')) {
       setStatusMessage({ type: 'error', text: 'Format alamat email tidak valid!' });
       addLog('❌ Error: Format email tidak valid', 'error');
       return;
     }
 
     setIsSending(true);
-    setStatusMessage({ type: 'info', text: 'Menginisialisasi session cookie & mengirim link...' });
-    addLog(`[*] Initializing session for: ${email.trim()}...`, 'cmd');
+    setStatusMessage({ type: 'info', text: 'Mengirimkan magic link verifikasi ke email...' });
+    addLog(`[*] Menghubungi IdentityToolkit untuk ${targetEmail}...`, 'cmd');
 
     try {
-      const res = await fetch('/api/am/send', {
+      const res = await fetch('/api/send-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim(),
-          cookie: cookie.trim() || undefined,
-        }),
+        body: JSON.stringify({ email: targetEmail }),
       });
 
       const rawText = await res.text();
@@ -140,25 +174,18 @@ export default function Home() {
         throw new Error(`Respons server tidak valid (HTTP ${res.status}). Silakan coba lagi.`);
       }
 
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || `HTTP ${res.status}: Gagal mengirim link`);
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || `Gagal mengirim link verifikasi (${data.code || res.status})`);
       }
 
-      if (data.cookie) {
-        setCookie(data.cookie);
-        addLog(`[*] Session ready. (cookie: ${data.cookie.slice(0, 15)}...)`, 'info');
-      }
-
-      addLog(`[*] Sending verification link to: ${email.trim()}`, 'cmd');
-      addLog(`✅ Verification link sent successfully!`, 'success');
-      addLog(`💡 Check your inbox at ${email.trim()}, then paste the full magic link below:`, 'warn');
+      addLog(`✅ Link verifikasi berhasil dikirim ke: ${targetEmail}`, 'success');
+      addLog(`💡 Buka email masuk lalu tempelkan link verifikasi di Langkah 2`, 'warn');
 
       setStatusMessage({
         type: 'success',
-        text: `Link verifikasi terkirim ke ${email.trim()}! Silakan periksa inbox / spam email Anda.`,
+        text: data.message || `Link verifikasi dikirim ke ${targetEmail}. Cek inbox atau spam email Anda.`,
       });
 
-      // Move to Step 2
       setStep(2);
     } catch (err: any) {
       const msg = err.message || 'Gagal mengirim link verifikasi';
@@ -169,42 +196,35 @@ export default function Home() {
     }
   };
 
-  // Step 2: Verify magic link
+  // Step 2: Verify magic link & auto-activate 1 Year VIP Pro
   const handleVerifyLink = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!email.trim()) {
+    const targetEmail = email.trim().toLowerCase();
+    const rawMagicLink = magicLink.trim();
+
+    if (!targetEmail) {
       setStatusMessage({ type: 'error', text: 'Email wajib diisi!' });
       return;
     }
 
-    if (!magicLink.trim() || magicLink.trim().length < 10) {
-      setStatusMessage({ type: 'error', text: 'Silakan tempelkan Magic Link yang valid dari email Anda!' });
-      addLog('❌ Error: Magic link tidak valid atau terlalu pendek', 'error');
-      return;
-    }
-
-    if (!cookie.trim()) {
-      setStatusMessage({
-        type: 'error',
-        text: 'Session cookie hilang. Silakan kirim ulang link verifikasi di Step 1.',
-      });
-      addLog('❌ Error: Session cookie tidak ditemukan. Ulangi Step 1.', 'error');
+    if (!rawMagicLink) {
+      setStatusMessage({ type: 'error', text: 'Silakan tempelkan Magic Link yang didapat dari email Anda!' });
+      addLog('❌ Error: Link verifikasi kosong', 'error');
       return;
     }
 
     setIsVerifying(true);
-    setStatusMessage({ type: 'info', text: 'Memverifikasi Magic Link...' });
-    addLog(`[*] Verifying magic link...`, 'cmd');
+    setStatusMessage({ type: 'info', text: 'Memverifikasi link & mengaktifkan Alight Motion VIP Pro...' });
+    addLog(`[*] Ekstraksi oobCode & autentikasi Android client...`, 'cmd');
 
     try {
-      const res = await fetch('/api/am/verify', {
+      const res = await fetch('/api/verify-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: email.trim(),
-          link: magicLink.trim(),
-          cookie: cookie.trim(),
+          email: targetEmail,
+          magicLink: rawMagicLink,
         }),
       });
 
@@ -213,34 +233,45 @@ export default function Home() {
       try {
         data = JSON.parse(rawText);
       } catch {
-        throw new Error(`Respons server tidak valid (HTTP ${res.status}). Silakan coba lagi.`);
+        throw new Error(`Respons server tidak valid (HTTP ${res.status}).`);
       }
 
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || `HTTP ${res.status}: Verifikasi gagal`);
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || `Verifikasi gagal (${data.code || res.status})`);
       }
 
-      addLog(`✅ VERIFICATION SUCCESSFUL!`, 'success');
-      addLog(`UserData: ${JSON.stringify(data.userData || data.raw)}`, 'info');
+      const verifiedUser = data.data || data.userData;
+
+      addLog(`✅ VERIFIKASI BERHASIL! UID: ${verifiedUser.uid}`, 'success');
+      if (verifiedUser.orderId) {
+        addLog(`⭐ ALIGHT MOTION PRO VIP AKTIF: Order ${verifiedUser.orderId}`, 'success');
+      }
+      addLog(`📅 Masa berlaku: ${verifiedUser.validUntil || '1 Tahun'}`, 'info');
 
       setVerificationResult({
-        userData: data.userData,
-        raw: data.raw,
+        userData: verifiedUser,
+        raw: data,
       });
+
+      if (data.data?.stats) {
+        setStats(data.data.stats);
+      } else {
+        refreshStats();
+      }
 
       setStatusMessage({
         type: 'success',
-        text: 'Akun Alight Motion berhasil diverifikasi!',
+        text: data.message || 'Akun Alight Motion berhasil diverifikasi dan Premium aktif!',
       });
 
-      // Save to local history
+      // Simpan ke riwayat akun terverifikasi
       const newRecord: VerifiedRecord = {
         id: `rec-${Date.now()}`,
-        email: email.trim(),
-        cookie: cookie.trim(),
-        timestamp: new Date().toLocaleString(),
-        userData: data.userData,
-        raw: data.raw,
+        email: targetEmail,
+        cookie: cookie.trim() || verifiedUser.orderId || 'verified_token',
+        timestamp: new Date().toLocaleString('id-ID'),
+        userData: verifiedUser,
+        raw: data,
       };
 
       const updatedHistory = [newRecord, ...history.slice(0, 19)];
@@ -251,7 +282,6 @@ export default function Home() {
         // ignore
       }
 
-      // Move to Step 3
       setStep(3);
     } catch (err: any) {
       const msg = err.message || 'Verifikasi gagal';
@@ -279,7 +309,7 @@ export default function Home() {
   };
 
   const handleClearHistory = () => {
-    if (window.confirm('Hapus seluruh riwayat akun terverifikasi?')) {
+    if (typeof window !== 'undefined' && window.confirm('Hapus seluruh riwayat akun terverifikasi?')) {
       setHistory([]);
       localStorage.removeItem('am_verified_history');
       addLog('Riwayat verifikasi dibersihkan.', 'info');
@@ -294,10 +324,7 @@ export default function Home() {
       raw: rec.raw,
     });
     setStep(3);
-    setStatusMessage({
-      type: 'info',
-      text: `Menampilkan akun tersimpan: ${rec.email}`,
-    });
+    addLog(`Memuat data akun riwayat: ${rec.email}`, 'info');
   };
 
   const resetFlow = () => {
@@ -318,26 +345,14 @@ export default function Home() {
         {/* Brutalist Intro Hero Card */}
         <div className="bg-yellow-300 border-4 border-black shadow-[6px_6px_0px_0px_#000] p-4 sm:p-6 relative overflow-hidden">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="space-y-2 max-w-2xl">
+            <div className="space-y-1.5 max-w-2xl">
               <div className="inline-flex items-center gap-2 bg-black text-white px-2.5 py-1 font-mono font-bold text-xs">
                 <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
                 <span>LAYANAN VERIFIKASI AKUN BERBASIS WEB</span>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="relative w-10 h-10 sm:w-12 sm:h-12 bg-[#171c2e] border-3 border-black shadow-[3px_3px_0px_0px_#000] rounded-sm overflow-hidden shrink-0">
-                  <Image
-                    src="/alight-motion-logo.png"
-                    alt="Logo Alight Motion"
-                    width={48}
-                    height={48}
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight uppercase leading-tight">
-                  AM PREM MAGIC LINK TOOL
-                </h2>
-              </div>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight uppercase leading-tight">
+                AM PREM MAGIC LINK TOOL
+              </h2>
               <p className="font-mono text-xs sm:text-sm font-semibold text-neutral-800">
                 Otomasi perolehan session cookie, pengiriman magic link ke email, dan verifikasi akun Alight Motion secara cepat dan aman.
               </p>
@@ -346,13 +361,44 @@ export default function Home() {
             {/* Brutalist Feature Badges */}
             <div className="flex flex-wrap md:flex-col gap-2 shrink-0">
               <div className="px-3 py-1 bg-white border-2 border-black font-mono font-bold text-xs shadow-[2px_2px_0px_0px_#000] flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Backend App Router</span>
-              </div>
-              <div className="px-3 py-1 bg-cyan-300 border-2 border-black font-mono font-bold text-xs shadow-[2px_2px_0px_0px_#000] flex items-center gap-1.5">
                 <Zap className="w-3.5 h-3.5 text-black" />
-                <span>Vercel Deploy Ready</span>
+                <span>Auto 1-Year VIP Pro</span>
               </div>
+              <div className="px-3 py-1 bg-lime-400 border-2 border-black font-mono font-bold text-xs shadow-[2px_2px_0px_0px_#000] flex items-center gap-1.5">
+                <Award className="w-3.5 h-3.5 text-black" />
+                <span>AM-Reverse Engine</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Live Counter / Stats Banner from am-reverse logic */}
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 font-mono">
+          <div className="bg-white border-3 border-black p-3.5 sm:p-4 shadow-[4px_4px_0px_0px_#000] flex items-center justify-between">
+            <div>
+              <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-neutral-600 block">
+                TOTAL AKTIVASI
+              </span>
+              <span className="text-2xl sm:text-3xl font-black text-emerald-600">
+                {Number(stats.total || 0).toLocaleString('id-ID')}
+              </span>
+            </div>
+            <div className="w-10 h-10 bg-emerald-100 border-2 border-black flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-emerald-700" />
+            </div>
+          </div>
+
+          <div className="bg-white border-3 border-black p-3.5 sm:p-4 shadow-[4px_4px_0px_0px_#000] flex items-center justify-between">
+            <div>
+              <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-neutral-600 block">
+                AKTIVASI HARI INI
+              </span>
+              <span className="text-2xl sm:text-3xl font-black text-black">
+                {Number(stats.today || 0).toLocaleString('id-ID')}
+              </span>
+            </div>
+            <div className="w-10 h-10 bg-amber-200 border-2 border-black flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-black" />
             </div>
           </div>
         </div>
@@ -361,39 +407,39 @@ export default function Home() {
         <div className="grid grid-cols-3 gap-2 sm:gap-3 font-mono text-xs font-black uppercase">
           <button
             onClick={() => setStep(1)}
-            className={`p-2.5 sm:p-3 border-3 border-black text-center transition-all ${
+            className={`p-2.5 sm:p-3 border-3 border-black text-center transition-all cursor-pointer ${
               step === 1
                 ? 'bg-black text-white shadow-[4px_4px_0px_0px_#FFE600]'
                 : 'bg-white hover:bg-neutral-100 shadow-[3px_3px_0px_0px_#000]'
             }`}
           >
             <span className="block text-[10px] text-neutral-400">LANGKAH 1</span>
-            <span className="truncate block">Kirim Link</span>
+            <span className="truncate block">01 Email</span>
           </button>
 
           <button
             onClick={() => setStep(2)}
-            className={`p-2.5 sm:p-3 border-3 border-black text-center transition-all ${
+            className={`p-2.5 sm:p-3 border-3 border-black text-center transition-all cursor-pointer ${
               step === 2
                 ? 'bg-black text-white shadow-[4px_4px_0px_0px_#FFE600]'
                 : 'bg-white hover:bg-neutral-100 shadow-[3px_3px_0px_0px_#000]'
             }`}
           >
             <span className="block text-[10px] text-neutral-400">LANGKAH 2</span>
-            <span className="truncate block">Verifikasi Link</span>
+            <span className="truncate block">02 Link</span>
           </button>
 
           <button
             onClick={() => setStep(3)}
             disabled={!verificationResult}
-            className={`p-2.5 sm:p-3 border-3 border-black text-center transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`p-2.5 sm:p-3 border-3 border-black text-center transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
               step === 3
                 ? 'bg-black text-white shadow-[4px_4px_0px_0px_#FFE600]'
                 : 'bg-white hover:bg-neutral-100 shadow-[3px_3px_0px_0px_#000]'
             }`}
           >
             <span className="block text-[10px] text-neutral-400">LANGKAH 3</span>
-            <span className="truncate block">Hasil Akun</span>
+            <span className="truncate block">03 VIP Pro</span>
           </button>
         </div>
 
@@ -412,11 +458,11 @@ export default function Home() {
               {statusMessage.type === 'success' && <CheckCircle2 className="w-4 h-4 shrink-0" />}
               {statusMessage.type === 'error' && <AlertTriangle className="w-4 h-4 shrink-0" />}
               {statusMessage.type === 'info' && <RefreshCw className="w-4 h-4 shrink-0 animate-spin" />}
-              <span>{statusMessage.text}</span>
+              <span className="break-all">{statusMessage.text}</span>
             </div>
             <button
               onClick={() => setStatusMessage({ type: null, text: '' })}
-              className="text-black underline text-[11px] shrink-0 hover:opacity-80"
+              className="text-black underline text-[11px] shrink-0 hover:opacity-80 cursor-pointer"
             >
               Tutup
             </button>
@@ -434,10 +480,10 @@ export default function Home() {
                     STEP 01
                   </span>
                   <h3 className="text-xl font-black uppercase tracking-tight mt-1">
-                    Input Email & Kirim Magic Link
+                    Masukkan Email Akun Alight Motion
                   </h3>
                   <p className="font-mono text-xs text-neutral-600">
-                    Sistem otomatis request session cookie dari API lalu memicu pengiriman magic link.
+                    Link verifikasi instan akan dikirim langsung ke alamat email Anda tanpa perlu kata sandi.
                   </p>
                 </div>
               </div>
@@ -470,26 +516,26 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setShowAdvanced(!showAdvanced)}
-                    className="text-xs font-bold text-neutral-700 underline hover:text-black flex items-center gap-1"
+                    className="text-xs font-bold text-neutral-700 underline hover:text-black flex items-center gap-1 cursor-pointer"
                   >
                     <KeyRound className="w-3.5 h-3.5" />
-                    <span>{showAdvanced ? 'Sembunyikan Opsi Cookie Manual' : 'Opsi Lanjutan: Cookie Manual'}</span>
+                    <span>{showAdvanced ? 'Sembunyikan Opsi Sesi Lanjutan' : 'Opsi Sesi Lanjutan'}</span>
                   </button>
 
                   {showAdvanced && (
                     <div className="mt-2 p-3 bg-neutral-100 border-2 border-black space-y-2">
                       <label className="block text-[11px] font-bold uppercase">
-                        Custom Session Cookie (Opsional)
+                        Session Identifier (Opsional)
                       </label>
                       <input
                         type="text"
                         value={cookie}
                         onChange={(e) => setCookie(e.target.value)}
-                        placeholder="Biarkan kosong untuk otomatis fetch cookie baru..."
+                        placeholder="Otomatis digenerate oleh sistem Android dalvik..."
                         className="w-full px-3 py-2 bg-white border-2 border-black text-xs font-mono focus:outline-none focus:bg-amber-50"
                       />
                       <p className="text-[10px] text-neutral-500">
-                        Secara default, sistem akan membuat session token unik secara otomatis untuk setiap proses verifikasi.
+                        Sistem kini menggunakan identitytoolkit Android resmi dengan spoofing IP acak secara otomatis.
                       </p>
                     </div>
                   )}
@@ -500,30 +546,28 @@ export default function Home() {
                   <button
                     type="submit"
                     disabled={isSending}
-                    className="w-full sm:w-auto flex-1 py-3.5 px-6 bg-lime-400 hover:bg-lime-300 text-black border-3 border-black font-black uppercase text-sm tracking-wider shadow-[4px_4px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto flex-1 py-3.5 px-6 bg-lime-400 hover:bg-lime-300 text-black border-3 border-black font-black uppercase text-sm tracking-wider shadow-[4px_4px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
                     {isSending ? (
                       <>
                         <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>MEMPROSES PENGIRIMAN LINK...</span>
+                        <span>MENGIRIM LINK KE EMAIL...</span>
                       </>
                     ) : (
                       <>
                         <Send className="w-4 h-4" />
-                        <span>KIRIM MAGIC LINK KE EMAIL</span>
+                        <span>KIRIM MAGIC LINK KE EMAIL &rarr;</span>
                       </>
                     )}
                   </button>
 
-                  {cookie && (
-                    <button
-                      type="button"
-                      onClick={() => setStep(2)}
-                      className="w-full sm:w-auto py-3.5 px-4 bg-cyan-300 hover:bg-cyan-200 border-3 border-black font-black text-xs uppercase shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1.5"
-                    >
-                      <span>Lanjut ke Step 2</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="w-full sm:w-auto py-3.5 px-4 bg-cyan-300 hover:bg-cyan-200 border-3 border-black font-black text-xs uppercase shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Langsung Tempel Link &rarr;</span>
+                  </button>
                 </div>
               </form>
             </div>
@@ -538,10 +582,10 @@ export default function Home() {
                     STEP 02
                   </span>
                   <h3 className="text-xl font-black uppercase tracking-tight mt-1">
-                    Buka Email & Tempel Magic Link
+                    Tempel Link & Aktifkan VIP Pro
                   </h3>
                   <p className="font-mono text-xs text-neutral-600">
-                    Cek kotak masuk email di <strong>{email || 'email Anda'}</strong>, lalu tempel tautan login di bawah.
+                    Buka email masuk dari Alight Motion di <strong>{email || 'email Anda'}</strong>, salin link lalu tempel di bawah.
                   </p>
                 </div>
               </div>
@@ -562,7 +606,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handlePasteClipboard}
-                  className="px-3 py-1.5 bg-yellow-300 hover:bg-yellow-200 border-2 border-black font-mono font-bold text-xs flex items-center gap-1.5 shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all"
+                  className="px-3 py-1.5 bg-yellow-300 hover:bg-yellow-200 border-2 border-black font-mono font-bold text-xs flex items-center gap-1.5 shadow-[2px_2px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
                 >
                   <ClipboardPaste className="w-3.5 h-3.5" />
                   <span>Tempel dari Clipboard</span>
@@ -570,25 +614,27 @@ export default function Home() {
               </div>
 
               <form onSubmit={handleVerifyLink} className="space-y-4 font-mono">
-                {/* Target Email display */}
-                <div className="p-2.5 bg-neutral-100 border-2 border-black flex items-center justify-between text-xs">
+                {/* Target Email display / editable */}
+                <div className="p-2.5 bg-neutral-100 border-2 border-black flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
                   <div>
-                    <span className="text-neutral-500">Target Email: </span>
+                    <span className="text-neutral-500">Email Target: </span>
                     <strong className="text-black">{email || 'Belum diisi'}</strong>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setStep(1)}
-                    className="text-blue-700 underline font-bold"
-                  >
-                    Ganti
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      className="text-blue-700 underline font-bold cursor-pointer"
+                    >
+                      Ganti Email
+                    </button>
+                  </div>
                 </div>
 
                 {/* Magic Link Textarea / Input */}
                 <div>
                   <label className="block text-xs font-black uppercase mb-1.5">
-                    Tautan Magic Link <span className="text-red-600">*</span>
+                    Tautan Magic Link / Kode oobCode <span className="text-red-600">*</span>
                   </label>
                   <div className="relative">
                     <textarea
@@ -596,51 +642,31 @@ export default function Home() {
                       rows={3}
                       value={magicLink}
                       onChange={(e) => setMagicLink(e.target.value)}
-                      placeholder="Contoh: https://alightcreative.com/am/login?token=... atau https://am.yappi.my.id/..."
+                      placeholder="Tempel tautan lengkap dari email atau oobCode (contoh: https://alightcreative.com?oobCode=...)"
                       className="w-full p-3 bg-neutral-50 border-3 border-black font-mono text-xs focus:outline-none focus:bg-amber-50 focus:border-black shadow-[3px_3px_0px_0px_#000] transition-all resize-none"
                     />
                   </div>
                   <p className="text-[11px] text-neutral-500 mt-1">
-                    Salin seluruh tautan tombol &quot;Sign In / Verify&quot; yang ada di dalam pesan email Alight Motion.
+                    Sistem otomatis mengekstrak parameter <code>oobCode</code> dan melakukan sign-in sekaligus verifikasi paket VIP Pro 1 Tahun.
                   </p>
-                </div>
-
-                {/* Cookie preview */}
-                <div className="p-2.5 bg-neutral-50 border-2 border-black text-xs flex items-center justify-between">
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <KeyRound className="w-3.5 h-3.5 text-neutral-600 shrink-0" />
-                    <span className="text-neutral-600 shrink-0">Session Cookie:</span>
-                    <span className="text-black font-bold truncate">
-                      {cookie ? `${cookie.slice(0, 20)}...` : 'Belum ada cookie (harus lewat Step 1)'}
-                    </span>
-                  </div>
-                  {!cookie && (
-                    <button
-                      type="button"
-                      onClick={() => setStep(1)}
-                      className="text-xs bg-red-200 border border-black px-2 py-0.5 font-bold"
-                    >
-                      Ambil Cookie
-                    </button>
-                  )}
                 </div>
 
                 {/* Submit Action Button */}
                 <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
                   <button
                     type="submit"
-                    disabled={isVerifying || !cookie}
-                    className="w-full sm:w-auto flex-1 py-3.5 px-6 bg-cyan-300 hover:bg-cyan-200 text-black border-3 border-black font-black uppercase text-sm tracking-wider shadow-[4px_4px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isVerifying || !magicLink.trim()}
+                    className="w-full sm:w-auto flex-1 py-3.5 px-6 bg-cyan-300 hover:bg-cyan-200 text-black border-3 border-black font-black uppercase text-sm tracking-wider shadow-[4px_4px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
                     {isVerifying ? (
                       <>
                         <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>MEMVERIFIKASI MAGIC LINK...</span>
+                        <span>MEMVERIFIKASI & MENGAKTIFKAN PRO...</span>
                       </>
                     ) : (
                       <>
                         <CheckCircle2 className="w-4 h-4" />
-                        <span>VERIFIKASI MAGIC LINK SEKARANG</span>
+                        <span>VERIFIKASI & AKTIFKAN PREMIUM &rarr;</span>
                       </>
                     )}
                   </button>
@@ -648,9 +674,9 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setStep(1)}
-                    className="w-full sm:w-auto py-3.5 px-4 bg-white hover:bg-neutral-100 border-3 border-black font-black text-xs uppercase shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all"
+                    className="w-full sm:w-auto py-3.5 px-4 bg-white hover:bg-neutral-100 border-3 border-black font-black text-xs uppercase shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
                   >
-                    Kembali ke Step 1
+                    &larr; Kembali
                   </button>
                 </div>
               </form>
@@ -664,20 +690,20 @@ export default function Home() {
                 email={email}
                 userData={verificationResult.userData}
                 raw={verificationResult.raw}
-                cookie={cookie}
+                cookie={cookie || verificationResult.userData?.orderId || ''}
               />
 
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={resetFlow}
-                  className="py-3 px-6 bg-amber-300 hover:bg-amber-200 border-3 border-black font-mono font-black text-xs uppercase shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2"
+                  className="py-3 px-6 bg-amber-300 hover:bg-amber-200 border-3 border-black font-mono font-black text-xs uppercase shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Verifikasi Akun Lainnya</span>
+                  <span>Aktivasi Akun Lainnya</span>
                 </button>
                 <button
                   onClick={() => setStep(2)}
-                  className="py-3 px-4 bg-white hover:bg-neutral-100 border-3 border-black font-mono font-bold text-xs uppercase shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all"
+                  className="py-3 px-4 bg-white hover:bg-neutral-100 border-3 border-black font-mono font-bold text-xs uppercase shadow-[3px_3px_0px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
                 >
                   Ubah Link
                 </button>
@@ -693,35 +719,35 @@ export default function Home() {
           onSelect={handleSelectHistory}
         />
 
-        {/* Live Terminal / Console Logger (Reflecting original CLI behavior) */}
+        {/* Live Terminal / Console Logger */}
         <LogTerminal logs={logs} onClear={clearLogs} />
 
         {/* Instructions & Help Card */}
         <div className="bg-white border-4 border-black shadow-[5px_5px_0px_0px_#000] p-4 sm:p-5 font-mono text-xs space-y-3">
           <div className="flex items-center gap-2 font-black uppercase text-sm border-b-2 border-black pb-2">
             <HelpCircle className="w-4 h-4 text-black" />
-            <span>PANDUAN PENGGUNAAN</span>
+            <span>PANDUAN PENGGUNAAN SISTEM</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="p-3 bg-neutral-50 border-2 border-black">
               <div className="font-black text-black mb-1">1. MASUKKAN EMAIL</div>
               <p className="text-neutral-600 text-[11px] leading-relaxed">
-                Tuliskan email Alight Motion Anda. Sistem akan meminta session cookie dan mengirimkan pesan verifikasi magic link ke inbox email Anda.
+                Ketikkan email Alight Motion Anda. Sistem memicu pengiriman magic link resmi melalui IdentityToolkit Android.
               </p>
             </div>
 
             <div className="p-3 bg-neutral-50 border-2 border-black">
-              <div className="font-black text-black mb-1">2. CEK INBOX EMAIL</div>
+              <div className="font-black text-black mb-1">2. SALIN DARI EMAIL</div>
               <p className="text-neutral-600 text-[11px] leading-relaxed">
-                Buka email masuk dari Alight Motion. Klik kanan atau tahan pada tombol &quot;Masuk / Verify&quot; lalu pilih &quot;Salin URL / Tautan&quot;.
+                Buka pesan masuk dari Alight Motion di inbox / spam. Salin tautan tombol &quot;Sign In / Verify&quot;.
               </p>
             </div>
 
             <div className="p-3 bg-neutral-50 border-2 border-black">
-              <div className="font-black text-black mb-1">3. TEMPEL & VERIFIKASI</div>
+              <div className="font-black text-black mb-1">3. AKTIVASI OTOMATIS</div>
               <p className="text-neutral-600 text-[11px] leading-relaxed">
-                Tempelkan tautan ke kolom Langkah 2 dan tekan tombol verifikasi. Informasi status akun akan langsung ditampilkan.
+                Tempel link dan klik verifikasi. Sistem otomatis login dan mengaktifkan lisensi VIP Pro 1 Tahun.
               </p>
             </div>
           </div>
