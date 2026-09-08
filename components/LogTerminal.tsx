@@ -40,9 +40,6 @@ export default function LogTerminal({ logs, onClear }: LogTerminalProps) {
             <Terminal className="w-3.5 h-3.5 text-lime-400" />
             amv2_terminal.log
           </span>
-          <span className="bg-neutral-800 text-neutral-400 text-[10px] px-2 py-0.5 rounded border border-neutral-700">
-            {logs.length} baris
-          </span>
         </div>
 
         <div className="flex items-center gap-1.5">
