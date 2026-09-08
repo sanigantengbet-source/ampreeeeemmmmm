@@ -12,6 +12,8 @@ import {
   Key,
   Code2,
   Download,
+  Sparkles,
+  Award,
 } from 'lucide-react';
 
 interface VerificationCardProps {
@@ -56,6 +58,10 @@ export default function VerificationCard({
   };
 
   const userObj = userData || raw?.data?.user || raw?.data || {};
+  const isPremiumActive =
+    userObj.status === 'ACTIVE' ||
+    userObj.membershipStatus === 'PREMIUM_ACTIVE' ||
+    raw?.raw?.premium?.ok;
 
   return (
     <div className="w-full bg-white border-4 border-black shadow-[6px_6px_0px_0px_#000] p-4 sm:p-6 space-y-5">
@@ -66,11 +72,19 @@ export default function VerificationCard({
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[11px] font-black uppercase tracking-wider bg-black text-white px-2 py-0.5 inline-block">
-              SUCCESS VERIFIED
-            </span>
-            <h3 className="text-lg font-black tracking-tight text-black uppercase">
-              Akun Berhasil Diverifikasi!
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-black uppercase tracking-wider bg-black text-white px-2 py-0.5 inline-block">
+                SUCCESS VERIFIED
+              </span>
+              {isPremiumActive && (
+                <span className="text-[11px] font-black uppercase tracking-wider bg-lime-400 border border-black text-black px-2 py-0.5 inline-flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-black" />
+                  PREMIUM AKTIF
+                </span>
+              )}
+            </div>
+            <h3 className="text-lg font-black tracking-tight text-black uppercase mt-0.5">
+              Akun Berhasil Diverifikasi & Premium Aktif!
             </h3>
           </div>
         </div>
@@ -78,7 +92,7 @@ export default function VerificationCard({
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             onClick={downloadJSON}
-            className="flex-1 sm:flex-none px-3 py-1.5 bg-yellow-300 hover:bg-yellow-200 border-2 border-black font-mono font-bold text-xs shadow-[2px_2px_0px_0px_#000] flex items-center justify-center gap-1.5 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all"
+            className="flex-1 sm:flex-none px-3 py-1.5 bg-yellow-300 hover:bg-yellow-200 border-2 border-black font-mono font-bold text-xs shadow-[2px_2px_0px_0px_#000] flex items-center justify-center gap-1.5 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
             title="Download JSON record backup"
           >
             <Download className="w-3.5 h-3.5" />
@@ -86,7 +100,7 @@ export default function VerificationCard({
           </button>
           <button
             onClick={() => setShowRaw(!showRaw)}
-            className="flex-1 sm:flex-none px-3 py-1.5 bg-white hover:bg-neutral-100 border-2 border-black font-mono font-bold text-xs shadow-[2px_2px_0px_0px_#000] flex items-center justify-center gap-1.5 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all"
+            className="flex-1 sm:flex-none px-3 py-1.5 bg-white hover:bg-neutral-100 border-2 border-black font-mono font-bold text-xs shadow-[2px_2px_0px_0px_#000] flex items-center justify-center gap-1.5 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
           >
             <Code2 className="w-3.5 h-3.5" />
             <span>{showRaw ? 'Tutup JSON' : 'Raw JSON'}</span>
@@ -105,7 +119,7 @@ export default function VerificationCard({
             </span>
             <button
               onClick={() => copyToClipboard(email, 'email')}
-              className="text-black hover:text-neutral-600 font-bold flex items-center gap-1"
+              className="text-black hover:text-neutral-600 font-bold flex items-center gap-1 cursor-pointer"
             >
               {copiedKey === 'email' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
               <span>{copiedKey === 'email' ? 'Tersalin' : 'Salin'}</span>
@@ -114,64 +128,124 @@ export default function VerificationCard({
           <p className="font-bold text-black text-sm break-all">{email}</p>
         </div>
 
-        {/* User ID / Account ID */}
+        {/* User ID / Account UID */}
         <div className="p-3 bg-neutral-50 border-2 border-black shadow-[2px_2px_0px_0px_#000]">
           <div className="flex items-center justify-between text-neutral-600 mb-1">
             <span className="font-bold uppercase flex items-center gap-1.5">
               <User className="w-3.5 h-3.5 text-black" />
-              User ID / Nama
+              UID Firebase
             </span>
-            {userObj.id && (
+            {userObj.uid && (
               <button
-                onClick={() => copyToClipboard(String(userObj.id), 'userid')}
-                className="text-black hover:text-neutral-600 font-bold flex items-center gap-1"
+                onClick={() => copyToClipboard(String(userObj.uid), 'userid')}
+                className="text-black hover:text-neutral-600 font-bold flex items-center gap-1 cursor-pointer"
               >
                 {copiedKey === 'userid' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                 <span>{copiedKey === 'userid' ? 'Tersalin' : 'Salin'}</span>
               </button>
             )}
           </div>
-          <p className="font-bold text-black text-sm break-all">
-            {userObj.name || userObj.displayName || userObj.id || userObj.uid || 'Verified User'}
+          <p className="font-bold text-black text-xs break-all">
+            {userObj.uid || userObj.id || 'Verified User'}
           </p>
         </div>
 
-        {/* Status / Membership */}
+        {/* Status / Membership Tier */}
         <div className="p-3 bg-cyan-100 border-2 border-black shadow-[2px_2px_0px_0px_#000]">
           <div className="flex items-center justify-between text-neutral-700 mb-1">
             <span className="font-bold uppercase flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-black" />
-              Status Akun
+              Status Akun & Paket
             </span>
             <span className="bg-lime-400 border border-black px-1.5 py-0.5 text-[10px] font-black uppercase text-black">
-              ACTIVE
+              {userObj.status || 'ACTIVE'}
             </span>
           </div>
           <p className="font-black text-black text-sm">
-            {userObj.subscription || userObj.status || userObj.tier || 'Alight Motion Member'}
+            {userObj.tier || userObj.planName || 'Alight Motion Pro / Member'}
+          </p>
+        </div>
+
+        {/* Subscription / Order ID */}
+        <div className="p-3 bg-amber-100 border-2 border-black shadow-[2px_2px_0px_0px_#000]">
+          <div className="flex items-center justify-between text-neutral-600 mb-1">
+            <span className="font-bold uppercase flex items-center gap-1.5">
+              <Award className="w-3.5 h-3.5 text-black" />
+              Order ID Aktivasi
+            </span>
+            {userObj.orderId && (
+              <button
+                onClick={() => copyToClipboard(String(userObj.orderId), 'order')}
+                className="text-black hover:text-neutral-600 font-bold flex items-center gap-1 cursor-pointer"
+              >
+                {copiedKey === 'order' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                <span>{copiedKey === 'order' ? 'Tersalin' : 'Salin'}</span>
+              </button>
+            )}
+          </div>
+          <p className="font-mono text-xs font-bold text-black break-all">
+            {userObj.orderId || 'neo-verified'}
+          </p>
+        </div>
+
+        {/* Masa Berlaku */}
+        <div className="p-3 bg-lime-100 border-2 border-black shadow-[2px_2px_0px_0px_#000]">
+          <div className="flex items-center justify-between text-neutral-600 mb-1">
+            <span className="font-bold uppercase flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-black" />
+              Masa Berlaku VIP
+            </span>
+            <span className="text-[10px] font-bold text-neutral-700">1 Tahun</span>
+          </div>
+          <p className="font-bold text-black text-sm">
+            {userObj.validUntil || '1 Tahun (Yearly VIP License)'}
           </p>
         </div>
 
         {/* Cookie Session string */}
-        <div className="p-3 bg-amber-50 border-2 border-black shadow-[2px_2px_0px_0px_#000]">
+        <div className="p-3 bg-neutral-100 border-2 border-black shadow-[2px_2px_0px_0px_#000]">
           <div className="flex items-center justify-between text-neutral-600 mb-1">
             <span className="font-bold uppercase flex items-center gap-1.5">
               <Key className="w-3.5 h-3.5 text-black" />
-              Session Cookie
+              Token Type / Cookie
             </span>
-            <button
-              onClick={() => copyToClipboard(cookie, 'cookie')}
-              className="text-black hover:text-neutral-600 font-bold flex items-center gap-1"
-            >
-              {copiedKey === 'cookie' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-              <span>{copiedKey === 'cookie' ? 'Tersalin' : 'Salin'}</span>
-            </button>
+            {cookie && (
+              <button
+                onClick={() => copyToClipboard(cookie, 'cookie')}
+                className="text-black hover:text-neutral-600 font-bold flex items-center gap-1 cursor-pointer"
+              >
+                {copiedKey === 'cookie' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                <span>{copiedKey === 'cookie' ? 'Tersalin' : 'Salin'}</span>
+              </button>
+            )}
           </div>
-          <p className="font-mono text-xs text-neutral-800 truncate" title={cookie}>
-            {cookie ? `${cookie.slice(0, 24)}...${cookie.slice(-8)}` : 'Cookie Attached'}
+          <p className="font-mono text-xs text-neutral-800 truncate" title={cookie || 'Bearer Token Verified'}>
+            {cookie ? `${cookie.slice(0, 24)}...` : 'Bearer Token Verified'}
           </p>
         </div>
       </div>
+
+      {/* ID Token Box for direct copy */}
+      {userObj.idToken && (
+        <div className="p-3 bg-neutral-50 border-2 border-black shadow-[2px_2px_0px_0px_#000] font-mono text-xs space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="font-bold uppercase flex items-center gap-1 text-neutral-700">
+              <Key className="w-3.5 h-3.5 text-black" />
+              Firebase ID Token (Auth Session):
+            </span>
+            <button
+              onClick={() => copyToClipboard(userObj.idToken, 'idtok')}
+              className="px-2 py-0.5 bg-black text-lime-400 hover:bg-neutral-800 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+            >
+              {copiedKey === 'idtok' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+              <span>{copiedKey === 'idtok' ? 'Token Tersalin!' : 'Salin ID Token'}</span>
+            </button>
+          </div>
+          <div className="p-2 bg-neutral-900 text-neutral-300 rounded-xs text-[10px] break-all max-h-16 overflow-y-auto">
+            {userObj.idToken}
+          </div>
+        </div>
+      )}
 
       {/* Raw JSON View */}
       {showRaw && (
@@ -180,7 +254,7 @@ export default function VerificationCard({
             <span className="font-bold uppercase text-white">Full JSON Response:</span>
             <button
               onClick={() => copyToClipboard(JSON.stringify(raw, null, 2), 'rawjson')}
-              className="text-yellow-300 hover:text-yellow-200 flex items-center gap-1"
+              className="text-yellow-300 hover:text-yellow-200 flex items-center gap-1 cursor-pointer"
             >
               {copiedKey === 'rawjson' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
               <span>{copiedKey === 'rawjson' ? 'JSON Tersalin!' : 'Salin JSON'}</span>
