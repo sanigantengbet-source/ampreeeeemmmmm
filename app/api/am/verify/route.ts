@@ -6,37 +6,35 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { email, link, cookie } = body;
+    const email = body.email;
+    const rawLink = body.link || body.magicLink;
+    const cookie = body.cookie;
 
     if (!email || typeof email !== 'string') {
       return NextResponse.json(
-        { ok: false, error: 'Email wajib diisi' },
+        { ok: false, success: false, error: 'Email wajib diisi', message: 'Email wajib diisi' },
         { status: 400 }
       );
     }
 
-    if (!link || typeof link !== 'string' || link.trim().length < 10) {
+    if (!rawLink || typeof rawLink !== 'string' || rawLink.trim().length < 5) {
       return NextResponse.json(
-        { ok: false, error: 'Magic link tidak valid atau terlalu pendek' },
+        { ok: false, success: false, error: 'Magic link tidak valid', message: 'Magic link tidak valid' },
         { status: 400 }
       );
     }
 
-    if (!cookie || typeof cookie !== 'string') {
-      return NextResponse.json(
-        { ok: false, error: 'Session cookie wajib disertakan' },
-        { status: 400 }
-      );
-    }
-
-    const result = await verifyMagicLink(email.trim(), link.trim(), cookie.trim());
+    const result = await verifyMagicLink(email.trim(), rawLink.trim(), cookie?.trim());
 
     return NextResponse.json({
       ok: true,
       success: true,
       userData: result.userData,
+      data: result.userData,
       raw: result.raw,
-      message: 'Verifikasi akun berhasil!',
+      message: result.userData.status === 'ACTIVE' 
+        ? 'Verifikasi akun berhasil, Alight Motion Premium VIP aktif!' 
+        : 'Verifikasi akun berhasil!',
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -44,6 +42,7 @@ export async function POST(req: NextRequest) {
         ok: false,
         success: false,
         error: error.message || 'Gagal memverifikasi magic link',
+        message: error.message || 'Gagal memverifikasi magic link',
       },
       { status: 500 }
     );
