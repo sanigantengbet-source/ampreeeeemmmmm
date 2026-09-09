@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
+import DisclaimerModal from '@/components/DisclaimerModal';
 import LogTerminal, { LogEntry } from '@/components/LogTerminal';
 import VerificationCard from '@/components/VerificationCard';
 import HistorySection, { VerifiedRecord } from '@/components/HistorySection';
@@ -65,20 +66,8 @@ export default function Home() {
   // Activity logs
   const [logs, setLogs] = useState<LogEntry[]>(INITIAL_LOGS);
 
-  // History records with safe lazy client initial state
-  const [history, setHistory] = useState<VerifiedRecord[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('am_verified_history');
-        if (saved) {
-          return JSON.parse(saved);
-        }
-      } catch {
-        // Ignore local storage error
-      }
-    }
-    return [];
-  });
+  // History records (starts empty to ensure server/client HTML match during hydration)
+  const [history, setHistory] = useState<VerifiedRecord[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Fetch stats on load and after verification
@@ -111,8 +100,25 @@ export default function Home() {
       })
       .catch(() => {});
 
+    // Hydrate local history after initial mount
+    const timer = setTimeout(() => {
+      if (!isMounted) return;
+      try {
+        const saved = localStorage.getItem('am_verified_history');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setHistory(parsed);
+          }
+        }
+      } catch {
+        // Ignore local storage error
+      }
+    }, 0);
+
     return () => {
       isMounted = false;
+      clearTimeout(timer);
     };
   }, []);
 
@@ -337,6 +343,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#FAFAF8] text-black flex flex-col font-sans selection:bg-amber-300 selection:text-black">
+      {/* Disclaimer Popup Modal on entry */}
+      <DisclaimerModal />
+
       {/* Navigation & Header */}
       <Navbar />
 
